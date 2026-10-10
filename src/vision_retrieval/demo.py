@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import json
+import math
 from pathlib import Path
 from typing import Dict
 
@@ -27,6 +28,7 @@ class DemoRuntime:
     five_crop_retriever: FiveCropRetriever
     image_paths: Dict[str, Path]
     alpha: float
+    five_crop_threshold: float
 
     def search(self, query: str, method: str):
         text = query.strip()
@@ -36,6 +38,26 @@ class DemoRuntime:
             self.global_retriever if method == GLOBAL_METHOD else self.five_crop_retriever
         )
         results = retriever.search(self.encoder.encode_texts([text])[0], top_k=10)
+        if method == FIVE_CROP_METHOD:
+            results = [
+                result
+                for result in results
+                if result.score >= self.five_crop_threshold
+            ]
+            status = (
+                f"Returned {len(results)} result(s) with similarity at or above "
+                f"the validation-selected threshold `{self.five_crop_threshold:.4f}`."
+                if results
+                else (
+                    "No image passed the validation-selected similarity threshold "
+                    f"`{self.five_crop_threshold:.4f}`."
+                )
+            )
+        else:
+            status = (
+                "Showing the top 10 global-baseline results. No threshold is applied "
+                "because this method needs its own validation-selected cutoff."
+            )
 
         gallery = []
         crop_gallery = []
@@ -62,7 +84,7 @@ class DemoRuntime:
                 crop_gallery.append(
                     (crop, f"#{rank}  {result.winning_crop.replace('_', ' ')}")
                 )
-        return gallery, rows, crop_gallery
+        return status, gallery, rows, crop_gallery
 
 
 def load_demo_runtime(config_path: Path, device: str = None) -> DemoRuntime:
@@ -97,13 +119,32 @@ def load_demo_runtime(config_path: Path, device: str = None) -> DemoRuntime:
         )
     alpha_data = json.loads(alpha_path.read_text(encoding="utf-8"))
     validation_images, validation_queries = load_split(config, "validation")
-    if alpha_data.get("validation_manifest_sha256") != manifest_sha256(
-        validation_images, validation_queries
-    ):
+    validation_hash = manifest_sha256(validation_images, validation_queries)
+    if alpha_data.get("validation_manifest_sha256") != validation_hash:
         raise ValueError("selected alpha does not match the validation manifest")
     if alpha_data.get("checkpoint_revision") != cache.metadata.checkpoint_revision:
         raise ValueError("selected alpha and embedding cache use different checkpoints")
     alpha = float(alpha_data["alpha"])
+
+    threshold_path = config.output_root / "parameters" / "five_crop_threshold.json"
+    if not threshold_path.is_file():
+        raise FileNotFoundError(
+            f"selected threshold not found: {threshold_path}; run scripts/tune_alpha.py first"
+        )
+    threshold_data = json.loads(threshold_path.read_text(encoding="utf-8"))
+    if threshold_data.get("validation_manifest_sha256") != validation_hash:
+        raise ValueError("selected threshold does not match the validation manifest")
+    if threshold_data.get("selection_metric") != "target_relevant_recall":
+        raise ValueError("selected threshold does not use the shared target-recall rule")
+    if threshold_data.get("checkpoint_revision") != cache.metadata.checkpoint_revision:
+        raise ValueError("selected threshold and embedding cache use different checkpoints")
+    if float(threshold_data.get("alpha")) != alpha:
+        raise ValueError("selected threshold and retriever use different alpha values")
+    if float(threshold_data.get("target_recall")) != config.threshold_target_recall:
+        raise ValueError("selected threshold uses a different target recall")
+    threshold = float(threshold_data["threshold"])
+    if not math.isfinite(threshold):
+        raise ValueError("selected threshold must be finite")
 
     return DemoRuntime(
         config=config,
@@ -120,6 +161,7 @@ def load_demo_runtime(config_path: Path, device: str = None) -> DemoRuntime:
         ),
         image_paths={image.image_id: image.path for image in images},
         alpha=alpha,
+        five_crop_threshold=threshold,
     )
 
 
@@ -143,7 +185,8 @@ def create_demo(config_path: Path, device: str = None):
             "# SigLIP 2 Flickr8k Image Search\n"
             "Search the 1,000-image Flickr8k test gallery using the frozen "
             f"`{runtime.config.checkpoint_id}` checkpoint. Five-crop fusion uses "
-            f"validation-selected alpha `{runtime.alpha:g}`."
+            f"validation-selected alpha `{runtime.alpha:g}` and similarity threshold "
+            f"`{runtime.five_crop_threshold:.4f}`."
         )
         with gr.Row():
             query = gr.Textbox(
@@ -158,7 +201,12 @@ def create_demo(config_path: Path, device: str = None):
                 scale=1,
             )
         search_button = gr.Button("Search", variant="primary")
-        results = gr.Gallery(label="Top 10 results", columns=5, height="auto")
+        status = gr.Markdown()
+        results = gr.Gallery(
+            label="Ranked results",
+            columns=5,
+            height="auto",
+        )
         scores = gr.Dataframe(
             headers=[
                 "Rank",
@@ -175,7 +223,7 @@ def create_demo(config_path: Path, device: str = None):
         crops = gr.Gallery(
             label="Winning regions (five-crop fusion only)", columns=5, height="auto"
         )
-        outputs = [results, scores, crops]
+        outputs = [status, results, scores, crops]
         search_button.click(search, inputs=[query, method], outputs=outputs)
         query.submit(search, inputs=[query, method], outputs=outputs)
     return demo

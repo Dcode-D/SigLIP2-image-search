@@ -28,3 +28,9 @@ Provide a Gradio interface when practical. It should accept free-form text, let 
 - Keep method configuration explicit and use a shared result format so methods can be compared fairly.
 - Document setup, dataset acquisition requirements, model checkpoint selection, and commands to run evaluation and the demo.
 - Do not add a dependency or a new model unless a shortlisted method needs it; explain the need and its role.
+
+## Version control
+
+- Never create a Git commit or push changes to a remote repository on the user's behalf.
+- Leave all changes uncommitted so the user can review them first.
+- The user is responsible for committing and pushing after review.

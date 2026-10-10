@@ -151,6 +151,10 @@ The demo will:
 - Allow selection between `Global baseline` and `Five-crop fusion`.
 - Return the top-ranked Flickr8k images.
 - Show rank, fused score, global score, maximum crop score, and winning crop.
+- Filter five-crop results using its validation-selected score threshold and report
+  when no image passes it.
+- Leave the global baseline unfiltered unless it receives its own
+  validation-selected threshold.
 - Load the model and cached image embeddings once at startup.
 - Clearly report missing or incompatible model, dataset, or cache assets.
 

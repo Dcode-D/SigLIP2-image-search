@@ -260,15 +260,20 @@ The command prints ranked scores and local image paths.
 
 ## 10. Launch the Gradio demo
 
-After the test embedding cache and selected alpha exist, start the local interface:
+After the test embedding cache, selected alpha, and selected threshold exist, start
+the local interface:
 
 ```bash
 python app.py
 ```
 
 Open `http://127.0.0.1:7860`, enter a text description, and select either the
-global baseline or five-crop fusion. The interface shows the top 10 images,
-component scores, and the winning image region for five-crop results.
+global baseline or five-crop fusion. Five-crop fusion hides images whose final
+similarity is below `artifacts/parameters/five_crop_threshold.json`, while the
+global baseline remains unfiltered until it has its own validation-selected
+threshold. The interface shows retained images, component scores, the applied
+threshold, and the winning image region for five-crop results. If no image passes,
+the interface reports that no match met the threshold.
 
 To listen on another interface or use a specific accelerator:
 
