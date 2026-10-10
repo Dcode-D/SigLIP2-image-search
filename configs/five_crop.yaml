@@ -1,0 +1,35 @@
+{
+  "checkpoint": {
+    "id": "google/siglip2-base-patch16-224",
+    "revision": "0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e",
+    "cache_dir": "../models/huggingface"
+  },
+  "dataset": {
+    "root": "../data/flickr8k",
+    "images_dir": "images",
+    "captions_file": "Flickr8k.token.txt",
+    "split_files": {
+      "validation": "Flickr_8k.devImages.txt",
+      "test": "Flickr_8k.testImages.txt"
+    },
+    "expected_images_per_split": 1000,
+    "captions_per_image": 5
+  },
+  "output_root": "../artifacts",
+  "method": {
+    "crop_ratio": 0.6,
+    "crop_names": [
+      "top_left",
+      "top_right",
+      "bottom_left",
+      "bottom_right",
+      "center"
+    ],
+    "alpha_grid": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  },
+  "evaluation": {
+    "seed": 20261009,
+    "cutoffs": [1, 5, 10]
+  }
+}
+
