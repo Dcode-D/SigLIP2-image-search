@@ -13,6 +13,9 @@ import statistics
 EXPECTED_TEST_MANIFEST_SHA256 = (
     "2d9dda23d52dcfef8cd186bcd3d650b5c2f569317d558e3decbb99894cf25cce"
 )
+EXPECTED_VALIDATION_MANIFEST_SHA256 = (
+    "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
+)
 
 
 def _read_jsonl(path: Path) -> list:
@@ -48,7 +51,12 @@ def _latency(values: list) -> dict:
     }
 
 
-def score(images_path: Path, queries_path: Path, predictions_path: Path) -> dict:
+def score(
+    images_path: Path,
+    queries_path: Path,
+    predictions_path: Path,
+    threshold: float = None,
+) -> dict:
     images = _read_jsonl(images_path)
     queries = _read_jsonl(queries_path)
     predictions = _read_jsonl(predictions_path)
@@ -103,6 +111,8 @@ def score(images_path: Path, queries_path: Path, predictions_path: Path) -> dict
     text_times = []
     search_times = []
     end_times = []
+    retained_counts = []
+    relevant_retained = []
     for query_id in relevance:
         row = by_query[query_id]
         relevant_ids = row.get("relevant_image_ids")
@@ -136,10 +146,15 @@ def score(images_path: Path, queries_path: Path, predictions_path: Path) -> dict
         text_times.append(latencies[0])
         search_times.append(latencies[1])
         end_times.append(latencies[2])
-        ranks.append(ranked.index(relevance[query_id]) + 1)
+        rank = ranked.index(relevance[query_id]) + 1
+        ranks.append(rank)
+        if threshold is not None:
+            kept = sum(score >= threshold for score in numeric_scores)
+            retained_counts.append(kept)
+            relevant_retained.append(rank <= kept)
 
     count = len(ranks)
-    return {
+    report = {
         "query_count": count,
         "recall_at_1": sum(rank <= 1 for rank in ranks) / count,
         "recall_at_5": sum(rank <= 5 for rank in ranks) / count,
@@ -153,6 +168,37 @@ def score(images_path: Path, queries_path: Path, predictions_path: Path) -> dict
         "search": _latency(search_times),
         "end_to_end": _latency(end_times),
     }
+    if threshold is not None:
+        retained_total = sum(retained_counts)
+        true_positive = sum(relevant_retained)
+        false_positive = retained_total - true_positive
+        false_negative = count - true_positive
+        f1_denominator = 2 * true_positive + false_positive + false_negative
+        filtered_ranks = [
+            rank if retained else None
+            for rank, retained in zip(ranks, relevant_retained)
+        ]
+        report["thresholded"] = {
+            "threshold": threshold,
+            "retained_candidate_count": retained_total,
+            "retained_candidate_fraction": retained_total / (count * len(gallery)),
+            "queries_with_results": sum(value > 0 for value in retained_counts),
+            "query_coverage": sum(value > 0 for value in retained_counts) / count,
+            "average_results_per_query": retained_total / count,
+            "relevant_images_retained": true_positive,
+            "candidate_precision": true_positive / retained_total if retained_total else 0.0,
+            "candidate_recall": true_positive / count,
+            "candidate_f1": 2 * true_positive / f1_denominator if f1_denominator else 0.0,
+            "recall_at_1": sum(rank is not None and rank <= 1 for rank in filtered_ranks) / count,
+            "recall_at_5": sum(rank is not None and rank <= 5 for rank in filtered_ranks) / count,
+            "recall_at_10": sum(rank is not None and rank <= 10 for rank in filtered_ranks) / count,
+            "mrr": sum(1.0 / rank if rank is not None else 0.0 for rank in filtered_ranks) / count,
+            "ndcg_at_10": sum(
+                1.0 / math.log2(rank + 1) if rank is not None and rank <= 10 else 0.0
+                for rank in filtered_ranks
+            ) / count,
+        }
+    return report
 
 
 def main() -> int:
@@ -161,9 +207,26 @@ def main() -> int:
     parser.add_argument("--queries", type=Path, required=True)
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    threshold_group = parser.add_mutually_exclusive_group()
+    threshold_group.add_argument("--threshold", type=float)
+    threshold_group.add_argument("--threshold-file", type=Path)
     args = parser.parse_args()
 
-    report = score(args.images, args.queries, args.predictions)
+    threshold = args.threshold
+    if args.threshold_file:
+        threshold_data = json.loads(args.threshold_file.read_text(encoding="utf-8"))
+        if (
+            threshold_data.get("validation_manifest_sha256")
+            != EXPECTED_VALIDATION_MANIFEST_SHA256
+        ):
+            parser.error("threshold file was not selected on the canonical validation split")
+        if threshold_data.get("selection_metric") != "image_pair_f1":
+            parser.error("threshold file must use the shared image_pair_f1 rule")
+        threshold = float(threshold_data["threshold"])
+    if threshold is not None and not math.isfinite(threshold):
+        parser.error("threshold must be finite")
+
+    report = score(args.images, args.queries, args.predictions, threshold)
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

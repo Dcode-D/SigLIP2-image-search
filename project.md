@@ -53,6 +53,14 @@ Encode and cache the full image and all five crops with the same frozen SigLIP 2
 
 Select `alpha` from `{0.0, 0.1, ..., 1.0}` using validation Recall@1. Break ties using validation MRR and then choose the smaller `alpha`. Freeze the selected value before evaluating the test split. The setting `alpha = 0` is the global baseline.
 
+### Validation-selected result threshold
+
+After selecting `alpha`, choose a fused-score threshold using validation data only. Treat each of the 5,000 × 1,000 validation query–image pairs as a binary decision: the caption's source image is positive and every other gallery image is negative. Select the score cutoff that maximizes image-pair F1; if cutoffs tie, choose the higher threshold. Freeze the cutoff before test evaluation.
+
+Test prediction files still contain the complete 1,000-image ranking. The evaluator separately reports metrics after excluding images below the cutoff, including candidate precision, candidate recall, candidate F1, retained-candidate fraction, query coverage, average results per query, thresholded R@1/5/10, MRR, and nDCG@10. The original complete-ranking metrics remain the primary benchmark results.
+
+This cutoff is a project extension, not part of the MINER retrieval method. MINER reports a confidence-gated fusion ablation using `global_score < tau` and `crop_score > global_score`; it fires on roughly 5% of pairs and improves R@1 by no more than 0.04, so the paper applies fusion to every pair. MINER's separate 5% mask-area threshold is used to construct its ROCS dataset and is unrelated to retrieval-score filtering.
+
 ## End-to-end flow
 
 ```text
@@ -183,6 +191,7 @@ Overall difficulty: **6/10**.
 - MINER-inspired five-crop fusion retrieval method.
 - Cached global and crop embeddings with compatibility metadata.
 - Validation-only fusion-weight selection.
+- Validation-only result-threshold selection and thresholded metrics.
 - Evaluation script reporting R@1/5/10, MRR, nDCG@10, and latency.
 - Shared prediction contract and collaborator comparison report.
 - Paired image-clustered bootstrap confidence intervals.

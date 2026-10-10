@@ -23,7 +23,12 @@ from vision_retrieval.cache import (
 from vision_retrieval.config import load_config
 from vision_retrieval.data import load_split, manifest_sha256
 from vision_retrieval.encoder import FrozenSiglip2Encoder
-from vision_retrieval.metrics import EvaluatedQuery, aggregate_metrics, evaluate_ranking
+from vision_retrieval.metrics import (
+    EvaluatedQuery,
+    aggregate_metrics,
+    evaluate_ranking,
+    evaluate_score_threshold,
+)
 from vision_retrieval.predictions import (
     MethodMetadata,
     PredictionRecord,
@@ -124,7 +129,7 @@ def _timed_search(encoder, retriever, text: str, timing_runs: int):
     )
 
 
-def _write_reports(config, method: str, evaluated, report) -> None:
+def _write_reports(config, method: str, evaluated, report, threshold_report=None) -> None:
     report_dir = config.output_root / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -159,9 +164,11 @@ def _write_reports(config, method: str, evaluated, report) -> None:
 
     metrics_path = report_dir / f"{method}_metrics.json"
     temporary_json = metrics_path.with_suffix(".json.tmp")
+    report_data = asdict(report)
+    if threshold_report is not None:
+        report_data["thresholded"] = asdict(threshold_report)
     temporary_json.write_text(
-        json.dumps(asdict(report), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+        json.dumps(report_data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     temporary_json.replace(metrics_path)
 
@@ -177,6 +184,27 @@ def _write_reports(config, method: str, evaluated, report) -> None:
         f"{report.end_to_end.mean_ms:.3f} | {report.end_to_end.p50_ms:.3f} | "
         f"{report.end_to_end.p95_ms:.3f} |\n"
     )
+    if threshold_report is not None:
+        markdown += (
+            "\n## Validation-selected score threshold\n\n"
+            f"Scores below `{threshold_report.threshold:.9f}` are excluded. "
+            "The complete ranking above remains the primary benchmark result.\n\n"
+            "| Candidate precision | Candidate recall | Candidate F1 | "
+            "Retained fraction | Average results/query | Query coverage | "
+            "Thresholded R@1 | R@5 | R@10 | MRR | nDCG@10 |\n"
+            "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+            f"| {threshold_report.candidate_precision:.6f} | "
+            f"{threshold_report.candidate_recall:.6f} | "
+            f"{threshold_report.candidate_f1:.6f} | "
+            f"{threshold_report.retained_candidate_fraction:.6f} | "
+            f"{threshold_report.average_results_per_query:.3f} | "
+            f"{threshold_report.query_coverage:.6f} | "
+            f"{threshold_report.recall_at_1:.6f} | "
+            f"{threshold_report.recall_at_5:.6f} | "
+            f"{threshold_report.recall_at_10:.6f} | "
+            f"{threshold_report.mrr:.6f} | "
+            f"{threshold_report.ndcg_at_10:.6f} |\n"
+        )
     temporary_markdown = markdown_path.with_suffix(".md.tmp")
     temporary_markdown.write_text(markdown, encoding="utf-8")
     temporary_markdown.replace(markdown_path)
@@ -235,6 +263,30 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
     gallery_ids = tuple(image.image_id for image in images)
     validate_predictions(records, expected_relevance, gallery_ids)
     report = aggregate_metrics(evaluated)
+    threshold_report = None
+    threshold = None
+    if method == "five_crop":
+        threshold_path = config.output_root / "parameters" / "five_crop_threshold.json"
+        if not threshold_path.is_file():
+            raise FileNotFoundError(
+                f"selected threshold not found: {threshold_path}; run scripts/tune_alpha.py first"
+            )
+        threshold_data = json.loads(threshold_path.read_text(encoding="utf-8"))
+        validation_images, validation_queries = load_split(config, "validation")
+        validation_hash = manifest_sha256(validation_images, validation_queries)
+        if threshold_data.get("validation_manifest_sha256") != validation_hash:
+            raise ValueError("selected threshold does not match the validation manifest")
+        if threshold_data.get("checkpoint_revision") != encoder.checkpoint_revision:
+            raise ValueError("selected threshold and evaluation use different checkpoints")
+        if float(threshold_data.get("alpha")) != alpha:
+            raise ValueError("selected threshold and retriever use different alpha values")
+        threshold = float(threshold_data["threshold"])
+        threshold_report = evaluate_score_threshold(
+            [record.ranked_image_ids for record in records],
+            [record.ranked_scores for record in records],
+            [record.relevant_image_ids[0] for record in records],
+            threshold,
+        )
 
     predictions_dir = config.output_root / "predictions"
     prediction_path = predictions_dir / f"{method}.jsonl.gz"
@@ -247,6 +299,10 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
         manifest_sha256=manifest_sha256(images, queries),
         parameters={
             "alpha": alpha,
+            "score_threshold": threshold,
+            "threshold_selection_metric": (
+                "validation_image_pair_f1" if threshold is not None else None
+            ),
             "crop_ratio": config.crop_ratio,
             "timing_runs": timing_runs,
             "warmup_queries": min(warmup, len(queries)),
@@ -266,8 +322,11 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
         },
     )
     write_method_metadata(predictions_dir / f"{method}.metadata.json", metadata)
-    _write_reports(config, method, evaluated, report)
-    print(json.dumps(asdict(report), indent=2, sort_keys=True))
+    _write_reports(config, method, evaluated, report, threshold_report)
+    printed_report = asdict(report)
+    if threshold_report is not None:
+        printed_report["thresholded"] = asdict(threshold_report)
+    print(json.dumps(printed_report, indent=2, sort_keys=True))
     return report
 
 

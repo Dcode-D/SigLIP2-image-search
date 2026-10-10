@@ -2,11 +2,12 @@
 
 This is the single guide to give every participant. Each project may use a different retrieval method, but everyone must use the dataset, ground truth, prediction contract, timing protocol, and evaluator defined here.
 
-Share these three files together:
+Share these four files together:
 
 ```text
 docs/SHARED_BENCHMARK_GUIDE.md
 scripts/score_predictions.py
+scripts/select_threshold.py
 scripts/time_operation.py
 ```
 
@@ -217,6 +218,52 @@ search: mean_ms, p50_ms, p95_ms
 end_to_end: mean_ms, p50_ms, p95_ms
 ```
 
+### Optional shared score-threshold protocol
+
+Use this only when a method filters low-scoring images. Do not copy another method's numeric cutoff because score scales differ between models and scoring functions.
+
+First export complete rankings for all validation queries using the same prediction schema. Select the threshold from validation only:
+
+```bash
+python scripts/select_threshold.py \
+  --images flickr8k_benchmark/validation_images.jsonl \
+  --queries flickr8k_benchmark/validation_queries.jsonl \
+  --predictions validation_predictions.jsonl \
+  --output selected_threshold.json
+```
+
+The selector treats all 5,000 × 1,000 query–image pairs as binary examples. Each caption's source image is positive and the other 999 images are negative. It chooses the cutoff that maximizes image-pair F1 and chooses the higher cutoff when F1 ties. Freeze this file before evaluating test predictions.
+
+Apply the frozen cutoff during test scoring:
+
+```bash
+python scripts/score_predictions.py \
+  --images flickr8k_benchmark/test_images.jsonl \
+  --queries flickr8k_benchmark/test_queries.jsonl \
+  --predictions test_predictions.jsonl \
+  --threshold-file selected_threshold.json \
+  --output test_metrics.json
+```
+
+Keep all 1,000 ranked images and scores in every prediction row. The evaluator applies the cutoff without changing the prediction contract. It adds:
+
+```text
+threshold
+candidate_precision
+candidate_recall
+candidate_f1
+retained_candidate_count and retained_candidate_fraction
+queries_with_results and query_coverage
+average_results_per_query
+thresholded recall_at_1, recall_at_5, recall_at_10, mrr, ndcg_at_10
+```
+
+A relevant image below the cutoff counts as a miss. Report these thresholded results separately from the primary complete-ranking metrics.
+
+For a fair comparison, every method must select its own cutoff from its own validation scores with this exact rule. Use the same validation and test manifests for all methods. Do not compare the numeric cutoff itself across models; compare candidate precision, recall, F1, retained fraction, coverage, and thresholded ranking metrics.
+
+MINER does not define a retrieval-result cutoff. Its confidence-gated ablation controls whether crop fusion is applied and was not adopted by the paper; its 5% object-area threshold is a ROCS dataset-construction rule. Any result filtering must therefore be labelled as a method-specific extension.
+
 ## Step 5: Measure latency fairly
 
 Use this procedure only when comparing latency:
@@ -298,6 +345,7 @@ Alongside the result table, every participant must report:
 - Dataset test manifest hash.
 - Model names and immutable checkpoint revisions.
 - Parameters and how validation selected them.
+- Score threshold, selection objective, and validation selection file when filtering is used.
 - Whether the method uses training, generated text, or additional models.
 - Hardware, device, numeric precision, and software versions.
 - Latency batch size, warmup count, and timing runs.

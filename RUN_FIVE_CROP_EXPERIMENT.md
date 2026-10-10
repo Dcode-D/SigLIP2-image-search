@@ -144,7 +144,7 @@ These reports separate model loading, dataset loading, image loading/cropping/en
 
 The command refuses to overwrite an existing embedding cache. Reuse the existing cache and its original timing report, or use a fresh checkout/output directory for a new timing run.
 
-## 6. Select the five-crop fusion weight
+## 6. Select the five-crop fusion weight and score threshold
 
 ```bash
 python scripts/tune_alpha.py --batch-size 64
@@ -157,7 +157,13 @@ Windows PowerShell:
 Get-Content artifacts/parameters/five_crop_alpha.json
 ```
 
-This evaluates every configured alpha on the validation set only. It selects the highest validation Recall@1, then highest MRR, then the smaller alpha when tied.
+This evaluates every configured alpha on the validation set only. It selects the highest validation Recall@1, then highest MRR, then the smaller alpha when tied. After alpha is frozen, the same command selects a fused-score cutoff that maximizes validation image-pair F1 and writes:
+
+```text
+artifacts/parameters/five_crop_threshold.json
+```
+
+Every validation query–image pair is one binary example. The caption's source image is positive and the other 999 images are negative. If F1 ties, the higher threshold wins. Do not replace the generated threshold with a value chosen from test results.
 
 Expected selected value for the pinned experiment:
 
@@ -204,6 +210,12 @@ The report contains:
 - nDCG@10
 - Mean, p50, and p95 query latency
 - Separate text-encoding and search latency in the JSON report
+- Validation-selected score threshold
+- Candidate precision, recall, and F1 after filtering
+- Retained-candidate fraction, average results per query, and query coverage
+- Thresholded Recall@1/5/10, MRR, and nDCG@10
+
+The ordinary retrieval metrics use the complete ranking and remain directly comparable with earlier runs. Thresholded metrics treat a relevant image below the cutoff as a miss.
 
 Reference quality results from the completed pinned run:
 
@@ -273,6 +285,7 @@ configs/five_crop.yaml
 data/flickr8k/SOURCE.json
 artifacts/manifests/metadata.json
 artifacts/parameters/five_crop_alpha.json
+artifacts/parameters/five_crop_threshold.json
 artifacts/predictions/five_crop.jsonl.gz
 artifacts/predictions/five_crop.metadata.json
 artifacts/reports/five_crop_metrics.json
@@ -293,4 +306,6 @@ Dataset files, model weights, embeddings, predictions, and reports are ignored b
 - Quality metrics can be compared across machines.
 - Compare latency and index-construction time only on the same hardware with the same device, precision, batch size, warmup, and timing procedure.
 - Do not add offline dataset/index preparation time to online query latency.
+- Select every method's threshold independently on validation using the shared image-pair F1 rule; raw score cutoffs are not transferable between models.
+- Preserve complete rankings for the primary metrics and report thresholded metrics separately.
 - Use the standalone collaborator protocol in [`docs/SHARED_BENCHMARK_GUIDE.md`](docs/SHARED_BENCHMARK_GUIDE.md).

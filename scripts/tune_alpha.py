@@ -18,6 +18,7 @@ from vision_retrieval.cache import (
 from vision_retrieval.config import load_config
 from vision_retrieval.data import load_split, manifest_sha256
 from vision_retrieval.encoder import FrozenSiglip2Encoder
+from vision_retrieval.metrics import select_score_threshold
 from vision_retrieval.retrieval import select_alpha
 
 
@@ -98,7 +99,44 @@ def tune(config, batch_size: int, device: str = None) -> dict:
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     temporary.replace(output_path)
+
+    global_scores = query_vectors @ cache.global_embeddings.T
+    crop_scores = np.empty_like(global_scores)
+    for start, batch in _batches(query_vectors, 128):
+        crop_scores[start : start + len(batch)] = np.einsum(
+            "qd,ncd->qnc", batch, cache.crop_embeddings, optimize=True
+        ).max(axis=2)
+    fused_scores = (
+        (1.0 - selection.alpha) * global_scores
+        + selection.alpha * crop_scores
+    )
+    image_index = {
+        image_id: index for index, image_id in enumerate(cache.metadata.image_ids)
+    }
+    relevant_indices = np.asarray(
+        [image_index[query.relevant_image_id] for query in queries], dtype=np.int64
+    )
+    threshold_selection = select_score_threshold(fused_scores, relevant_indices)
+    threshold_result = {
+        **asdict(threshold_selection),
+        "selection_metric": "image_pair_f1",
+        "tie_breaker": "higher_threshold",
+        "alpha": selection.alpha,
+        "checkpoint_id": cache.metadata.checkpoint_id,
+        "checkpoint_revision": cache.metadata.checkpoint_revision,
+        "validation_manifest_sha256": cache.metadata.manifest_sha256,
+        "query_count": len(queries),
+        "gallery_size": len(images),
+    }
+    threshold_path = output_dir / "five_crop_threshold.json"
+    threshold_temporary = threshold_path.with_suffix(".json.tmp")
+    threshold_temporary.write_text(
+        json.dumps(threshold_result, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    threshold_temporary.replace(threshold_path)
     print(json.dumps(result, indent=2, sort_keys=True))
+    print(json.dumps(threshold_result, indent=2, sort_keys=True))
     return result
 
 
