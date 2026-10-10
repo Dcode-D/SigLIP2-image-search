@@ -157,13 +157,13 @@ Windows PowerShell:
 Get-Content artifacts/parameters/five_crop_alpha.json
 ```
 
-This evaluates every configured alpha on the validation set only. It selects the highest validation Recall@1, then highest MRR, then the smaller alpha when tied. After alpha is frozen, the same command selects a fused-score cutoff that maximizes validation image-pair F1 and writes:
+This evaluates every configured alpha on the validation set only. It selects the highest validation Recall@1, then highest MRR, then the smaller alpha when tied. After alpha is frozen, the same command selects the highest fused-score cutoff that retains at least 95% of validation relevant images and writes:
 
 ```text
 artifacts/parameters/five_crop_threshold.json
 ```
 
-Every validation query–image pair is one binary example. The caption's source image is positive and the other 999 images are negative. If F1 ties, the higher threshold wins. Do not replace the generated threshold with a value chosen from test results.
+The target `threshold_target_recall = 0.95` is fixed in `configs/five_crop.yaml`. Other methods use the same 95% validation-recall target while deriving their own numeric cutoff from their own scores. Do not copy a cutoff between methods, and do not replace the generated cutoff with a value chosen from test results.
 
 Expected selected value for the pinned experiment:
 
@@ -306,6 +306,7 @@ Dataset files, model weights, embeddings, predictions, and reports are ignored b
 - Quality metrics can be compared across machines.
 - Compare latency and index-construction time only on the same hardware with the same device, precision, batch size, warmup, and timing procedure.
 - Do not add offline dataset/index preparation time to online query latency.
-- Select every method's threshold independently on validation using the shared image-pair F1 rule; raw score cutoffs are not transferable between models.
+- Select every method's highest threshold that retains at least 95% of its validation relevant images; raw score cutoffs are not transferable between models.
+- Compare methods by test relevant-image coverage, candidate precision, retained fraction, average results per query, and thresholded ranking metrics at that shared operating point.
 - Preserve complete rankings for the primary metrics and report thresholded metrics separately.
 - Use the standalone collaborator protocol in [`docs/SHARED_BENCHMARK_GUIDE.md`](docs/SHARED_BENCHMARK_GUIDE.md).

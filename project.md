@@ -55,11 +55,11 @@ Select `alpha` from `{0.0, 0.1, ..., 1.0}` using validation Recall@1. Break ties
 
 ### Validation-selected result threshold
 
-After selecting `alpha`, choose a fused-score threshold using validation data only. Treat each of the 5,000 × 1,000 validation query–image pairs as a binary decision: the caption's source image is positive and every other gallery image is negative. Select the score cutoff that maximizes image-pair F1; if cutoffs tie, choose the higher threshold. Freeze the cutoff before test evaluation.
+After selecting `alpha`, choose a fused-score threshold using validation data only. The shared operating point requires every method to retain at least 95% of its validation relevant images. Select the highest score cutoff satisfying that target, including all score ties, then freeze it before test evaluation. Each method receives a different numeric cutoff because score scales differ, but every method is evaluated at the same predeclared validation-recall target.
 
 Test prediction files still contain the complete 1,000-image ranking. The evaluator separately reports metrics after excluding images below the cutoff, including candidate precision, candidate recall, candidate F1, retained-candidate fraction, query coverage, average results per query, thresholded R@1/5/10, MRR, and nDCG@10. The original complete-ranking metrics remain the primary benchmark results.
 
-This cutoff is a project extension, not part of the MINER retrieval method. MINER reports a confidence-gated fusion ablation using `global_score < tau` and `crop_score > global_score`; it fires on roughly 5% of pairs and improves R@1 by no more than 0.04, so the paper applies fusion to every pair. MINER's separate 5% mask-area threshold is used to construct its ROCS dataset and is unrelated to retrieval-score filtering.
+This cutoff is a project extension, not part of the MINER retrieval method. MINER reports a confidence-gated fusion ablation using `global_score < tau` and `crop_score > global_score`; it fires on roughly 5% of pairs and improves R@1 by no more than 0.04, so the paper applies fusion to every pair. The released MINER evaluator exposes alpha, crop, and CSLS parameters but no result threshold. MINER's separate 5% mask-area threshold is used to construct its ROCS dataset and is unrelated to retrieval-score filtering.
 
 ## End-to-end flow
 
@@ -211,4 +211,6 @@ Overall difficulty: **6/10**.
 
 - Tschannen et al., [SigLIP 2: Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features](https://arxiv.org/abs/2502.14786).
 - Alquwayfili et al., [MINER: Multi-crop INference-time Enhancement for Rare-Object Retrieval with Frozen Dual Encoders](https://arxiv.org/abs/2609.27142), preprint, 2026.
+- Pugnana and Ruggieri, [AUC-based Selective Classification](https://proceedings.mlr.press/v206/pugnana23a.html), AISTATS 2023.
+- Dhillon, Deligiannidis, and Rainforth, [On the Expected Size of Conformal Prediction Sets](https://proceedings.mlr.press/v238/dhillon24a.html), AISTATS 2024.
 - TensorFlow, [Image captioning tutorial and Flickr8k dataset description](https://www.tensorflow.org/text/tutorials/image_captioning?authuser=1).

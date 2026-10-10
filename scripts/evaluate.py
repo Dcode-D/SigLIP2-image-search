@@ -280,6 +280,8 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
             raise ValueError("selected threshold and evaluation use different checkpoints")
         if float(threshold_data.get("alpha")) != alpha:
             raise ValueError("selected threshold and retriever use different alpha values")
+        if float(threshold_data.get("target_recall")) != config.threshold_target_recall:
+            raise ValueError("selected threshold uses a different target recall")
         threshold = float(threshold_data["threshold"])
         threshold_report = evaluate_score_threshold(
             [record.ranked_image_ids for record in records],
@@ -301,7 +303,10 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
             "alpha": alpha,
             "score_threshold": threshold,
             "threshold_selection_metric": (
-                "validation_image_pair_f1" if threshold is not None else None
+                "validation_target_relevant_recall" if threshold is not None else None
+            ),
+            "threshold_target_recall": (
+                config.threshold_target_recall if threshold is not None else None
             ),
             "crop_ratio": config.crop_ratio,
             "timing_runs": timing_runs,

@@ -79,6 +79,7 @@ class ManifestTestCase(unittest.TestCase):
                     "center",
                 ],
                 "alpha_grid": [0.0, 0.5, 1.0],
+                "threshold_target_recall": 0.95,
             },
             "evaluation": {"seed": 20261009, "cutoffs": [1, 5, 10]},
         }

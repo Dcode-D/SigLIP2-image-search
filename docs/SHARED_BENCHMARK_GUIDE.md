@@ -22,6 +22,7 @@ scripts/time_operation.py
 | Relevant result | The caption's source image only |
 | Primary metric | Recall@1 |
 | Other metrics | Recall@5, Recall@10, MRR, nDCG@10 |
+| Threshold operating point | Retain at least 95% of validation relevant images |
 | Test manifest SHA-256 | `2d9dda23d52dcfef8cd186bcd3d650b5c2f569317d558e3decbb99894cf25cce` |
 
 ## Step 1: Download the exact dataset files
@@ -232,7 +233,7 @@ python scripts/select_threshold.py \
   --output selected_threshold.json
 ```
 
-The selector treats all 5,000 × 1,000 query–image pairs as binary examples. Each caption's source image is positive and the other 999 images are negative. It chooses the cutoff that maximizes image-pair F1 and chooses the higher cutoff when F1 ties. Freeze this file before evaluating test predictions.
+The shared operating point is 95% validation relevant-image recall. The selector finds the highest cutoff that retains at least 95% of the 5,000 source-image scores, including score ties. Freeze this file before evaluating test predictions.
 
 Apply the frozen cutoff during test scoring:
 
@@ -260,9 +261,13 @@ thresholded recall_at_1, recall_at_5, recall_at_10, mrr, ndcg_at_10
 
 A relevant image below the cutoff counts as a miss. Report these thresholded results separately from the primary complete-ranking metrics.
 
-For a fair comparison, every method must select its own cutoff from its own validation scores with this exact rule. Use the same validation and test manifests for all methods. Do not compare the numeric cutoff itself across models; compare candidate precision, recall, F1, retained fraction, coverage, and thresholded ranking metrics.
+For a fair comparison, every method must select its own cutoff from its own validation scores using `target_recall = 0.95`. Use the same validation and test manifests for all methods. Do not compare the numeric cutoff itself across models. At the matched operating point, compare test relevant-image coverage, candidate precision and F1, retained fraction, average results per query, and thresholded ranking metrics. A better method retains fewer irrelevant candidates while preserving the target relevant-image coverage.
+
+A universal raw-score cutoff is valid only when methods use exactly the same encoder, normalization, and scoring transformation. FAISS does not change scores when it performs exact inner-product search over the same normalized embeddings, but approximate indexes and different encoders or rerankers can change their distributions.
 
 MINER does not define a retrieval-result cutoff. Its confidence-gated ablation controls whether crop fusion is applied and was not adopted by the paper; its 5% object-area threshold is a ROCS dataset-construction rule. Any result filtering must therefore be labelled as a method-specific extension.
+
+The shared rule follows the prediction-set evaluation principle: compare set size and false positives while holding desired relevant-label coverage fixed. Selective-prediction research likewise recommends comparing risk at fixed coverage or coverage at fixed risk instead of comparing raw confidence thresholds. This benchmark uses the rule as an empirical validation protocol; it does not claim a formal conformal coverage guarantee because the same validation split may also be used for method parameter selection.
 
 ## Step 5: Measure latency fairly
 
@@ -368,3 +373,9 @@ These numbers are a sanity check for the frozen SigLIP 2 implementation, not exp
 | Five-crop fusion | 0.7368 | 0.9206 | 0.9658 | 0.818594 | 0.853057 |
 
 Checkpoint: `google/siglip2-base-patch16-224` at revision `0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e`.
+
+## Threshold protocol references
+
+- Alquwayfili et al., [MINER](https://arxiv.org/abs/2609.27142): applies fused retrieval scores to every pair and reports standard Recall@K; its confidence gate is an ablation rather than a result cutoff.
+- Pugnana and Ruggieri, [AUC-based Selective Classification](https://proceedings.mlr.press/v206/pugnana23a.html): formulates model-agnostic selective comparison using fixed target coverage and selective risk.
+- Dhillon, Deligiannidis, and Rainforth, [On the Expected Size of Conformal Prediction Sets](https://proceedings.mlr.press/v238/dhillon24a.html): motivates prediction-set size as the efficiency measure when methods target the same coverage.

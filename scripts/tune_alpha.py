@@ -116,10 +116,12 @@ def tune(config, batch_size: int, device: str = None) -> dict:
     relevant_indices = np.asarray(
         [image_index[query.relevant_image_id] for query in queries], dtype=np.int64
     )
-    threshold_selection = select_score_threshold(fused_scores, relevant_indices)
+    threshold_selection = select_score_threshold(
+        fused_scores, relevant_indices, config.threshold_target_recall
+    )
     threshold_result = {
         **asdict(threshold_selection),
-        "selection_metric": "image_pair_f1",
+        "selection_metric": "target_relevant_recall",
         "tie_breaker": "higher_threshold",
         "alpha": selection.alpha,
         "checkpoint_id": cache.metadata.checkpoint_id,

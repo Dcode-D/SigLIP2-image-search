@@ -21,6 +21,7 @@ class ExperimentConfig:
     crop_ratio: float
     crop_names: Tuple[str, ...]
     alpha_grid: Tuple[float, ...]
+    threshold_target_recall: float
     seed: int
     cutoffs: Tuple[int, ...]
 
@@ -82,6 +83,7 @@ def load_config(path: Path) -> ExperimentConfig:
             crop_ratio=float(method["crop_ratio"]),
             crop_names=tuple(str(name) for name in method["crop_names"]),
             alpha_grid=tuple(float(value) for value in method["alpha_grid"]),
+            threshold_target_recall=float(method["threshold_target_recall"]),
             seed=int(evaluation["seed"]),
             cutoffs=tuple(int(value) for value in evaluation["cutoffs"]),
         )
@@ -96,6 +98,8 @@ def load_config(path: Path) -> ExperimentConfig:
         raise ValueError("dataset counts must be positive")
     if not config.alpha_grid or any(value < 0.0 or value > 1.0 for value in config.alpha_grid):
         raise ValueError("alpha_grid values must be in the interval [0, 1]")
+    if not 0.0 < config.threshold_target_recall <= 1.0:
+        raise ValueError("threshold_target_recall must be in the interval (0, 1]")
     if not config.cutoffs or any(value <= 0 for value in config.cutoffs):
         raise ValueError("evaluation cutoffs must be positive")
     return config

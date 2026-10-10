@@ -26,7 +26,12 @@ def _read_jsonl(path: Path) -> list:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def select(images_path: Path, queries_path: Path, predictions_path: Path) -> dict:
+def select(
+    images_path: Path,
+    queries_path: Path,
+    predictions_path: Path,
+    target_recall: float,
+) -> dict:
     try:
         import numpy as np
     except ImportError as exc:
@@ -100,10 +105,10 @@ def select(images_path: Path, queries_path: Path, predictions_path: Path) -> dic
         score_matrix[query_index] = numeric_scores
         relevant_indices[query_index] = ranked.index(relevance[query_id])
 
-    selection = select_score_threshold(score_matrix, relevant_indices)
+    selection = select_score_threshold(score_matrix, relevant_indices, target_recall)
     return {
         **asdict(selection),
-        "selection_metric": "image_pair_f1",
+        "selection_metric": "target_relevant_recall",
         "tie_breaker": "higher_threshold",
         "validation_manifest_sha256": manifest_hash,
         "query_count": len(queries),
@@ -117,8 +122,16 @@ def main() -> int:
     parser.add_argument("--queries", type=Path, required=True)
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--target-recall", type=float, default=0.95)
     args = parser.parse_args()
-    result = select(args.images, args.queries, args.predictions)
+    if not 0.0 < args.target_recall <= 1.0:
+        parser.error("--target-recall must be in the interval (0, 1]")
+    result = select(
+        args.images,
+        args.queries,
+        args.predictions,
+        args.target_recall,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"

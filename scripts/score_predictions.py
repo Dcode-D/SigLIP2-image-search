@@ -16,6 +16,7 @@ EXPECTED_TEST_MANIFEST_SHA256 = (
 EXPECTED_VALIDATION_MANIFEST_SHA256 = (
     "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
 )
+SHARED_THRESHOLD_TARGET_RECALL = 0.95
 
 
 def _read_jsonl(path: Path) -> list:
@@ -220,8 +221,10 @@ def main() -> int:
             != EXPECTED_VALIDATION_MANIFEST_SHA256
         ):
             parser.error("threshold file was not selected on the canonical validation split")
-        if threshold_data.get("selection_metric") != "image_pair_f1":
-            parser.error("threshold file must use the shared image_pair_f1 rule")
+        if threshold_data.get("selection_metric") != "target_relevant_recall":
+            parser.error("threshold file must use the shared target-recall rule")
+        if float(threshold_data.get("target_recall")) != SHARED_THRESHOLD_TARGET_RECALL:
+            parser.error("threshold file must use target_recall=0.95")
         threshold = float(threshold_data["threshold"])
     if threshold is not None and not math.isfinite(threshold):
         parser.error("threshold must be finite")

@@ -48,6 +48,7 @@ class MetricReport:
 @dataclass(frozen=True)
 class ThresholdSelection:
     threshold: float
+    target_recall: float
     precision: float
     recall: float
     f1: float
@@ -160,8 +161,10 @@ def aggregate_metrics(rows: Sequence[EvaluatedQuery]) -> MetricReport:
     )
 
 
-def select_score_threshold(score_matrix, relevant_indices) -> ThresholdSelection:
-    """Select the validation cutoff that maximizes image-pair F1."""
+def select_score_threshold(
+    score_matrix, relevant_indices, target_recall: float = 0.95
+) -> ThresholdSelection:
+    """Choose the highest cutoff retaining the target share of relevant pairs."""
     try:
         import numpy as np
     except ImportError as exc:
@@ -177,39 +180,26 @@ def select_score_threshold(score_matrix, relevant_indices) -> ThresholdSelection
         raise ValueError("relevant index is outside the score matrix")
     if not np.isfinite(scores).all():
         raise ValueError("score_matrix contains non-finite values")
+    if not 0.0 < target_recall <= 1.0:
+        raise ValueError("target_recall must be in the interval (0, 1]")
 
-    flat_scores = scores.reshape(-1)
-    labels = np.zeros(flat_scores.size, dtype=np.bool_)
-    labels[np.arange(scores.shape[0]) * scores.shape[1] + relevant] = True
-    order = np.argsort(-flat_scores, kind="stable")
-    ordered_scores = flat_scores[order]
-    ordered_labels = labels[order]
-    cumulative_true = np.cumsum(ordered_labels, dtype=np.int64)
-    group_ends = np.flatnonzero(
-        np.r_[ordered_scores[:-1] != ordered_scores[1:], True]
-    )
-    retained = group_ends + 1
-    true_positive = cumulative_true[group_ends]
-    false_positive = retained - true_positive
-    false_negative = scores.shape[0] - true_positive
-    denominator = 2 * true_positive + false_positive + false_negative
-    f1 = np.divide(
-        2 * true_positive,
-        denominator,
-        out=np.zeros_like(denominator, dtype=np.float64),
-        where=denominator != 0,
-    )
-    best_position = int(np.argmax(f1))
-    best_group = int(group_ends[best_position])
-    tp = int(true_positive[best_position])
-    kept = int(retained[best_position])
+    positive_scores = scores[np.arange(scores.shape[0]), relevant]
+    target_count = int(math.ceil(target_recall * scores.shape[0]))
+    threshold = float(np.sort(positive_scores)[::-1][target_count - 1])
+    retained = scores >= threshold
+    tp = int(np.sum(positive_scores >= threshold))
+    kept = int(np.sum(retained))
+    false_positive = kept - tp
+    false_negative = scores.shape[0] - tp
+    f1_denominator = 2 * tp + false_positive + false_negative
     return ThresholdSelection(
-        threshold=float(ordered_scores[best_group]),
+        threshold=threshold,
+        target_recall=float(target_recall),
         precision=tp / kept,
         recall=tp / scores.shape[0],
-        f1=float(f1[best_position]),
+        f1=2 * tp / f1_denominator if f1_denominator else 0.0,
         retained_candidate_count=kept,
-        total_candidate_count=int(flat_scores.size),
+        total_candidate_count=int(scores.size),
     )
 
 
