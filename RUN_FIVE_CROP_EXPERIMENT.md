@@ -246,7 +246,25 @@ python scripts/query.py "a dog running through grass" --method five_crop --top-k
 
 The command prints ranked scores and local image paths.
 
-## 10. Files to keep for comparison
+## 10. Launch the Gradio demo
+
+After the test embedding cache and selected alpha exist, start the local interface:
+
+```bash
+python app.py
+```
+
+Open `http://127.0.0.1:7860`, enter a text description, and select either the
+global baseline or five-crop fusion. The interface shows the top 10 images,
+component scores, and the winning image region for five-crop results.
+
+To listen on another interface or use a specific accelerator:
+
+```bash
+python app.py --host 0.0.0.0 --port 7860 --device cuda
+```
+
+## 11. Files to keep for comparison
 
 Keep these files with the experiment result:
 
@@ -267,7 +285,7 @@ artifacts/timing/image_cache_test.json
 
 Dataset files, model weights, embeddings, predictions, and reports are ignored by Git. Archive the result files separately when they need to be shared.
 
-## 11. Fair comparison rules
+## 12. Fair comparison rules
 
 - Compare quality only when the test manifest hash is `2d9dda23d52dcfef8cd186bcd3d650b5c2f569317d558e3decbb99894cf25cce`.
 - Tune every method on validation only.
