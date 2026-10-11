@@ -1,0 +1,422 @@
+[
+  {
+    "compare": null,
+    "label": "Global cosine (exact, NumPy)",
+    "method": "global",
+    "metrics": {
+      "end_to_end": {
+        "mean_ms": 12.5508743986,
+        "p50_ms": 12.421756833333333,
+        "p95_ms": 13.384693433333334
+      },
+      "mrr": 0.8076995391208593,
+      "ndcg_at_10": 0.8433561939976578,
+      "query_count": 5000,
+      "recall_at_1": 0.722,
+      "recall_at_10": 0.9606,
+      "recall_at_5": 0.9174,
+      "search": {
+        "mean_ms": 1.0123894279333334,
+        "p50_ms": 0.9425975,
+        "p95_ms": 1.0452517666666667
+      },
+      "split": "test",
+      "text_encoding": {
+        "mean_ms": 11.538484970666666,
+        "p50_ms": 11.478798666666666,
+        "p95_ms": 12.33445865
+      },
+      "threshold_source_method": "global",
+      "thresholded": {
+        "average_results_per_query": 8.2592,
+        "candidate_f1": 0.2055469155002592,
+        "candidate_precision": 0.1152169701666021,
+        "candidate_recall": 0.9516,
+        "mrr": 0.7967920629109073,
+        "ndcg_at_10": 0.8301178184303364,
+        "queries_with_results": 4945,
+        "query_coverage": 0.989,
+        "recall_at_1": 0.717,
+        "recall_at_10": 0.936,
+        "recall_at_5": 0.901,
+        "relevant_images_retained": 4758,
+        "retained_candidate_count": 41296,
+        "retained_candidate_fraction": 0.0082592,
+        "threshold": 0.11668556928634644
+      }
+    },
+    "team_method": "Baseline",
+    "threshold_file": {
+      "alpha": 0.0,
+      "checkpoint_id": "google/siglip2-base-patch16-224",
+      "checkpoint_revision": "0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e",
+      "f1": 0.20360051435919416,
+      "gallery_size": 1000,
+      "method_name": "global",
+      "method_parameters": {},
+      "precision": 0.11401824291886702,
+      "query_count": 5000,
+      "recall": 0.95,
+      "retained_candidate_count": 41660,
+      "selection_metric": "target_relevant_recall",
+      "target_recall": 0.95,
+      "threshold": 0.11668556928634644,
+      "tie_breaker": "higher_threshold",
+      "total_candidate_count": 5000000,
+      "validation_manifest_sha256": "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
+    },
+    "threshold_source": "global"
+  },
+  {
+    "compare": {
+      "_meta": {
+        "baseline_file": "artifacts/predictions/global.jsonl.gz",
+        "bootstrap_samples": 10000,
+        "candidate_file": "artifacts/predictions/five_crop.jsonl.gz",
+        "images": 1000,
+        "queries": 5000,
+        "resampling_unit": "source image (all captions of a sampled image kept together)",
+        "seed": 20261009
+      },
+      "mrr": {
+        "baseline": 0.8076995391208593,
+        "candidate": 0.8185939906348841,
+        "ci95_high": 0.016171308236239808,
+        "ci95_low": 0.0056491810734323735,
+        "difference": 0.010894451514024794,
+        "significant": true
+      },
+      "ndcg_at_10": {
+        "baseline": 0.8433561939976578,
+        "candidate": 0.8530569708404852,
+        "ci95_high": 0.013968040608130795,
+        "ci95_low": 0.005298644275316201,
+        "difference": 0.00970077684282733,
+        "significant": true
+      },
+      "recall_at_1": {
+        "baseline": 0.722,
+        "candidate": 0.7368,
+        "ci95_high": 0.0236,
+        "ci95_low": 0.0062,
+        "difference": 0.014800000000000035,
+        "significant": true
+      },
+      "recall_at_10": {
+        "baseline": 0.9606,
+        "candidate": 0.9658,
+        "ci95_high": 0.009,
+        "ci95_low": 0.0014,
+        "difference": 0.005199999999999982,
+        "significant": true
+      },
+      "recall_at_5": {
+        "baseline": 0.9174,
+        "candidate": 0.9206,
+        "ci95_high": 0.0086,
+        "ci95_low": -0.0022,
+        "difference": 0.0031999999999999806,
+        "significant": false
+      }
+    },
+    "label": "MINER five-crop fusion",
+    "method": "five_crop",
+    "metrics": {
+      "end_to_end": {
+        "mean_ms": 13.824219431,
+        "p50_ms": 13.671194666666668,
+        "p95_ms": 14.456915983333333
+      },
+      "mrr": 0.8185939906348841,
+      "ndcg_at_10": 0.8530569708404852,
+      "query_count": 5000,
+      "recall_at_1": 0.7368,
+      "recall_at_10": 0.9658,
+      "recall_at_5": 0.9206,
+      "search": {
+        "mean_ms": 2.0651994699333334,
+        "p50_ms": 1.9879236666666666,
+        "p95_ms": 2.140897333333333
+      },
+      "split": "test",
+      "text_encoding": {
+        "mean_ms": 11.759019961066667,
+        "p50_ms": 11.664228999999999,
+        "p95_ms": 12.340395933333333
+      },
+      "threshold_source_method": "five_crop",
+      "thresholded": {
+        "average_results_per_query": 7.5344,
+        "candidate_f1": 0.22215973003374578,
+        "candidate_precision": 0.12582289233382885,
+        "candidate_recall": 0.948,
+        "mrr": 0.8068656498475403,
+        "ndcg_at_10": 0.8383087202840863,
+        "queries_with_results": 4950,
+        "query_coverage": 0.99,
+        "recall_at_1": 0.7324,
+        "recall_at_10": 0.9372,
+        "recall_at_5": 0.9034,
+        "relevant_images_retained": 4740,
+        "retained_candidate_count": 37672,
+        "retained_candidate_fraction": 0.0075344,
+        "threshold": 0.12277202308177948
+      }
+    },
+    "team_method": "MINER",
+    "threshold_file": {
+      "alpha": 0.5,
+      "checkpoint_id": "google/siglip2-base-patch16-224",
+      "checkpoint_revision": "0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e",
+      "f1": 0.2254390128144281,
+      "gallery_size": 1000,
+      "precision": 0.12789445341949382,
+      "query_count": 5000,
+      "recall": 0.95,
+      "retained_candidate_count": 37140,
+      "selection_metric": "target_relevant_recall",
+      "target_recall": 0.95,
+      "threshold": 0.12277202308177948,
+      "tie_breaker": "higher_threshold",
+      "total_candidate_count": 5000000,
+      "validation_manifest_sha256": "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
+    },
+    "threshold_source": "five_crop"
+  },
+  {
+    "compare": {
+      "_meta": {
+        "baseline_file": "artifacts/predictions/global.jsonl.gz",
+        "bootstrap_samples": 10000,
+        "candidate_file": "artifacts/predictions/faiss_flat.jsonl.gz",
+        "images": 1000,
+        "queries": 5000,
+        "resampling_unit": "source image (all captions of a sampled image kept together)",
+        "seed": 20261009
+      },
+      "mrr": {
+        "baseline": 0.8076995391208593,
+        "candidate": 0.8076995391208593,
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "difference": 0.0,
+        "significant": false
+      },
+      "ndcg_at_10": {
+        "baseline": 0.8433561939976578,
+        "candidate": 0.8433561939976578,
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "difference": 0.0,
+        "significant": false
+      },
+      "recall_at_1": {
+        "baseline": 0.722,
+        "candidate": 0.722,
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "difference": 0.0,
+        "significant": false
+      },
+      "recall_at_10": {
+        "baseline": 0.9606,
+        "candidate": 0.9606,
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "difference": 0.0,
+        "significant": false
+      },
+      "recall_at_5": {
+        "baseline": 0.9174,
+        "candidate": 0.9174,
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "difference": 0.0,
+        "significant": false
+      }
+    },
+    "label": "FAISS Flat (exact inner product)",
+    "method": "faiss_flat",
+    "metrics": {
+      "end_to_end": {
+        "mean_ms": 12.158824471600001,
+        "p50_ms": 12.001833166666666,
+        "p95_ms": 12.710772
+      },
+      "mrr": 0.8076995391208593,
+      "ndcg_at_10": 0.8433561939976578,
+      "query_count": 5000,
+      "recall_at_1": 0.722,
+      "recall_at_10": 0.9606,
+      "recall_at_5": 0.9174,
+      "search": {
+        "mean_ms": 1.1164004528666667,
+        "p50_ms": 1.0476248333333333,
+        "p95_ms": 1.1392856166666667
+      },
+      "split": "test",
+      "text_encoding": {
+        "mean_ms": 11.042424018733334,
+        "p50_ms": 10.954944333333332,
+        "p95_ms": 11.577981833333332
+      },
+      "threshold_source_method": "global",
+      "thresholded": {
+        "average_results_per_query": 8.2592,
+        "candidate_f1": 0.2055469155002592,
+        "candidate_precision": 0.1152169701666021,
+        "candidate_recall": 0.9516,
+        "mrr": 0.7967920629109073,
+        "ndcg_at_10": 0.8301178184303364,
+        "queries_with_results": 4945,
+        "query_coverage": 0.989,
+        "recall_at_1": 0.717,
+        "recall_at_10": 0.936,
+        "recall_at_5": 0.901,
+        "relevant_images_retained": 4758,
+        "retained_candidate_count": 41296,
+        "retained_candidate_fraction": 0.0082592,
+        "threshold": 0.11668556928634644
+      }
+    },
+    "team_method": "FAISS",
+    "threshold_file": {
+      "alpha": 0.0,
+      "checkpoint_id": "google/siglip2-base-patch16-224",
+      "checkpoint_revision": "0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e",
+      "f1": 0.20360051435919416,
+      "gallery_size": 1000,
+      "method_name": "global",
+      "method_parameters": {},
+      "precision": 0.11401824291886702,
+      "query_count": 5000,
+      "recall": 0.95,
+      "retained_candidate_count": 41660,
+      "selection_metric": "target_relevant_recall",
+      "target_recall": 0.95,
+      "threshold": 0.11668556928634644,
+      "tie_breaker": "higher_threshold",
+      "total_candidate_count": 5000000,
+      "validation_manifest_sha256": "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
+    },
+    "threshold_source": "global"
+  },
+  {
+    "compare": {
+      "_meta": {
+        "baseline_file": "artifacts/predictions/global.jsonl.gz",
+        "bootstrap_samples": 10000,
+        "candidate_file": "artifacts/predictions/faiss_ivf.jsonl.gz",
+        "images": 1000,
+        "queries": 5000,
+        "resampling_unit": "source image (all captions of a sampled image kept together)",
+        "seed": 20261009
+      },
+      "mrr": {
+        "baseline": 0.8076995391208593,
+        "candidate": 0.7589190644445338,
+        "ci95_high": -0.03959708483579201,
+        "ci95_low": -0.05858869414767016,
+        "difference": -0.048780474676325514,
+        "significant": true
+      },
+      "ndcg_at_10": {
+        "baseline": 0.8433561939976578,
+        "candidate": 0.7919938094241852,
+        "ci95_high": -0.042002748583149015,
+        "ci95_low": -0.06136680864673731,
+        "difference": -0.05136238457347264,
+        "significant": true
+      },
+      "recall_at_1": {
+        "baseline": 0.722,
+        "candidate": 0.6802,
+        "ci95_high": -0.0332,
+        "ci95_low": -0.0512,
+        "difference": -0.04179999999999995,
+        "significant": true
+      },
+      "recall_at_10": {
+        "baseline": 0.9606,
+        "candidate": 0.9002,
+        "ci95_high": -0.05,
+        "ci95_low": -0.0716,
+        "difference": -0.06040000000000001,
+        "significant": true
+      },
+      "recall_at_5": {
+        "baseline": 0.9174,
+        "candidate": 0.8606,
+        "ci95_high": -0.0464,
+        "ci95_low": -0.0678,
+        "difference": -0.05679999999999996,
+        "significant": true
+      }
+    },
+    "label": "FAISS IVF (nlist=32, nprobe=8)",
+    "method": "faiss_ivf",
+    "metrics": {
+      "end_to_end": {
+        "mean_ms": 12.199338448866666,
+        "p50_ms": 12.030771166666666,
+        "p95_ms": 12.79363345
+      },
+      "mrr": 0.7589190644445337,
+      "ndcg_at_10": 0.7919938094241851,
+      "query_count": 5000,
+      "recall_at_1": 0.6802,
+      "recall_at_10": 0.9002,
+      "recall_at_5": 0.8606,
+      "search": {
+        "mean_ms": 1.0126137274,
+        "p50_ms": 0.9449166666666667,
+        "p95_ms": 1.0370728166666667
+      },
+      "split": "test",
+      "text_encoding": {
+        "mean_ms": 11.186724721466668,
+        "p50_ms": 11.086972166666667,
+        "p95_ms": 11.773196316666667
+      },
+      "threshold_source_method": "global",
+      "thresholded": {
+        "average_results_per_query": 7.5864,
+        "candidate_f1": 0.20735115997391224,
+        "candidate_precision": 0.1173415585785089,
+        "candidate_recall": 0.8902,
+        "mrr": 0.7498066637496079,
+        "ndcg_at_10": 0.7806645098526466,
+        "queries_with_results": 4851,
+        "query_coverage": 0.9702,
+        "recall_at_1": 0.6764,
+        "recall_at_10": 0.8782,
+        "recall_at_5": 0.8468,
+        "relevant_images_retained": 4451,
+        "retained_candidate_count": 37932,
+        "retained_candidate_fraction": 0.0075864,
+        "threshold": 0.11668556928634644
+      }
+    },
+    "team_method": "FAISS",
+    "threshold_file": {
+      "alpha": 0.0,
+      "checkpoint_id": "google/siglip2-base-patch16-224",
+      "checkpoint_revision": "0ad8c6e0ff16615356a08a1ad8c8bbc8930c434e",
+      "f1": 0.20360051435919416,
+      "gallery_size": 1000,
+      "method_name": "global",
+      "method_parameters": {},
+      "precision": 0.11401824291886702,
+      "query_count": 5000,
+      "recall": 0.95,
+      "retained_candidate_count": 41660,
+      "selection_metric": "target_relevant_recall",
+      "target_recall": 0.95,
+      "threshold": 0.11668556928634644,
+      "tie_breaker": "higher_threshold",
+      "total_candidate_count": 5000000,
+      "validation_manifest_sha256": "d3259e317aba8ae64a3e9ef152253f0fe4031289371bb214ace409a1ea0685b2"
+    },
+    "threshold_source": "global"
+  }
+]
