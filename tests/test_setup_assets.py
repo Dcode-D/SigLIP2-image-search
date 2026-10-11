@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vision_retrieval.setup_assets import materialize_flickr8k
+from vision_retrieval.data.setup_assets import materialize_flickr8k
 
 
 class SetupAssetsTestCase(unittest.TestCase):

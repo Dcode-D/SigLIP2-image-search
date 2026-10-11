@@ -4,7 +4,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from vision_retrieval.predictions import (
+from vision_retrieval.evaluation.predictions import (
     PredictionRecord,
     read_predictions,
     validate_predictions,

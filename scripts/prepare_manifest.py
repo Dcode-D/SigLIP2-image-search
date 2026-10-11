@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from vision_retrieval.config import load_config
-from vision_retrieval.data import write_evaluation_manifests
+from vision_retrieval.data.flickr8k import write_evaluation_manifests
 from vision_retrieval.timing import write_timing_report
 
 
@@ -20,7 +20,7 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=PROJECT_ROOT / "configs" / "five_crop.yaml",
+        default=PROJECT_ROOT / "configs" / "experiment.yaml",
     )
     args = parser.parse_args()
 

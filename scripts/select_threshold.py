@@ -12,7 +12,7 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from vision_retrieval.metrics import select_score_threshold
+from vision_retrieval.evaluation.metrics import select_score_threshold
 
 
 EXPECTED_VALIDATION_MANIFEST_SHA256 = (

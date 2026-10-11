@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from vision_retrieval.metrics import (
+from vision_retrieval.evaluation.metrics import (
     EvaluatedQuery,
     aggregate_metrics,
     evaluate_ranking,

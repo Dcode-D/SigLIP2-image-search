@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from vision_retrieval.config import load_config
-from vision_retrieval.setup_assets import materialize_flickr8k
+from vision_retrieval.data.setup_assets import materialize_flickr8k
 from vision_retrieval.timing import write_timing_report
 
 
@@ -26,7 +26,7 @@ PARQUET_FILES = {
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config", type=Path, default=PROJECT_ROOT / "configs" / "five_crop.yaml"
+        "--config", type=Path, default=PROJECT_ROOT / "configs" / "experiment.yaml"
     )
     args = parser.parse_args()
 

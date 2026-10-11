@@ -5,7 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from vision_retrieval.config import load_config
-from vision_retrieval.data import (
+from vision_retrieval.data.flickr8k import (
     load_split,
     manifest_sha256,
     validate_no_split_overlap,

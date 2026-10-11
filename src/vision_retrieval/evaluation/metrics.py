@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import math
 import statistics
-from typing import Optional, Sequence, Set
+from typing import Sequence, Set
 
 
 @dataclass(frozen=True)

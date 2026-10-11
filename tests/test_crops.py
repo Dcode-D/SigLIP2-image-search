@@ -1,6 +1,6 @@
 import unittest
 
-from vision_retrieval.crops import CROP_NAMES, crop_boxes, five_crops
+from vision_retrieval.data.crops import CROP_NAMES, crop_boxes, five_crops
 
 
 class CropGeometryTestCase(unittest.TestCase):

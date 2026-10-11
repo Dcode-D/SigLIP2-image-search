@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config", type=Path, default=PROJECT_ROOT / "configs" / "five_crop.yaml"
+        "--config", type=Path, default=PROJECT_ROOT / "configs" / "experiment.yaml"
     )
     parser.add_argument("--device", choices=("cpu", "cuda", "mps"))
     parser.add_argument("--host", default="127.0.0.1")

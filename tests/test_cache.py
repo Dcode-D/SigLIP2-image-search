@@ -4,7 +4,7 @@ from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
-from vision_retrieval.cache import (
+from vision_retrieval.data.cache import (
     CacheMetadata,
     EmbeddingCache,
     assert_cache_compatible,

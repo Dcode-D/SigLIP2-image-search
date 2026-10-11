@@ -9,10 +9,10 @@ import time
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from vision_retrieval.cache import CacheMetadata, EmbeddingCache, save_embedding_cache
+from vision_retrieval.data.cache import CacheMetadata, EmbeddingCache, save_embedding_cache
 from vision_retrieval.config import load_config
-from vision_retrieval.crops import CROP_NAMES, five_crops
-from vision_retrieval.data import load_split, manifest_sha256
+from vision_retrieval.data.crops import CROP_NAMES, five_crops
+from vision_retrieval.data.flickr8k import load_split, manifest_sha256
 from vision_retrieval.encoder import FrozenSiglip2Encoder
 from vision_retrieval.timing import write_timing_report
 
@@ -94,7 +94,7 @@ def build_split_cache(config, split: str, batch_size: int, device: str = None) -
         EmbeddingCache(metadata, global_embeddings, crop_embeddings),
     )
     steps["array_assembly_and_cache_write_seconds"] = time.perf_counter() - started
-    timing = write_timing_report(
+    write_timing_report(
         config.output_root / "timing" / f"image_cache_{split}.json",
         operation="image_cache_construction",
         total_seconds=time.perf_counter() - total_started,
@@ -124,7 +124,7 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=PROJECT_ROOT / "configs" / "five_crop.yaml",
+        default=PROJECT_ROOT / "configs" / "experiment.yaml",
     )
     parser.add_argument(
         "--split", choices=("validation", "test", "all"), default="all"

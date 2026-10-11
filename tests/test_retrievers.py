@@ -1,6 +1,6 @@
 import unittest
 
-from vision_retrieval.retrieval import (
+from vision_retrieval.methods.retrievers import (
     FiveCropRetriever,
     GlobalRetriever,
     select_alpha,

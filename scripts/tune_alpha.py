@@ -10,16 +10,16 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from vision_retrieval.cache import (
+from vision_retrieval.data.cache import (
     CacheMetadata,
     load_embedding_cache,
     read_cache_metadata,
 )
 from vision_retrieval.config import load_config
-from vision_retrieval.data import load_split, manifest_sha256
+from vision_retrieval.data.flickr8k import load_split, manifest_sha256
 from vision_retrieval.encoder import FrozenSiglip2Encoder
-from vision_retrieval.metrics import select_score_threshold
-from vision_retrieval.retrieval import select_alpha
+from vision_retrieval.evaluation.metrics import select_score_threshold
+from vision_retrieval.methods.retrievers import select_alpha
 
 
 def _require_numpy():
@@ -147,7 +147,7 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=PROJECT_ROOT / "configs" / "five_crop.yaml",
+        default=PROJECT_ROOT / "configs" / "experiment.yaml",
     )
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--device", default=None)

@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-"""Evaluate global or five-crop retrieval on the Flickr8k test split."""
+"""Evaluate any registered retrieval method on a Flickr8k split.
+
+Methods are discovered from ``vision_retrieval.methods``; run
+``python scripts/evaluate.py --help`` to see the current list.
+
+Two modes, selected with ``--split``:
+
+* ``test`` (default): the benchmark. Writes the complete-ranking predictions and metrics
+  and, when the method's validation-selected threshold file exists, the thresholded
+  metrics next to them. ``--require-threshold`` turns a missing file into an error.
+* ``validation``: writes the same artefacts under ``predictions/validation`` and
+  ``reports/validation`` and, for a method that owns its threshold, selects the cutoff
+  that keeps ``threshold_target_recall`` of the relevant-image scores and freezes it in
+  ``artifacts/parameters/<method>_threshold.json``. Methods that reuse another method's
+  threshold (FAISS -> global) only print what their own selection would have been.
+
+Which threshold applies to which method is declared on the ``MethodSpec``
+(``threshold_source``); see ``src/vision_retrieval/evaluation/thresholds.py``.
+"""
 
 import argparse
 import csv
@@ -15,28 +33,38 @@ import time
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from vision_retrieval.cache import (
+from vision_retrieval.data.cache import (
     CacheMetadata,
     load_embedding_cache,
     read_cache_metadata,
 )
 from vision_retrieval.config import load_config
-from vision_retrieval.data import load_split, manifest_sha256
+from vision_retrieval.data.flickr8k import load_split, manifest_sha256
 from vision_retrieval.encoder import FrozenSiglip2Encoder
-from vision_retrieval.metrics import (
+from vision_retrieval.evaluation.metrics import (
     EvaluatedQuery,
     aggregate_metrics,
     evaluate_ranking,
     evaluate_score_threshold,
 )
-from vision_retrieval.predictions import (
+from vision_retrieval.evaluation.predictions import (
     MethodMetadata,
     PredictionRecord,
     validate_predictions,
     write_method_metadata,
     write_predictions,
 )
-from vision_retrieval.retrieval import FiveCropRetriever, GlobalRetriever
+from vision_retrieval.methods import BuildContext, build_method, list_methods
+from vision_retrieval.evaluation.thresholds import (
+    load_threshold,
+    reachable_fraction,
+    select_threshold_from_records,
+    threshold_file_contents,
+    threshold_path,
+    write_threshold_file,
+)
+
+SPLITS = ("test", "validation")
 
 
 def _synchronize(encoder) -> None:
@@ -54,11 +82,11 @@ def _package_version(name: str) -> str:
         return "unknown"
 
 
-def _load_retriever(config, method, encoder, images, queries):
-    cache_path = config.output_root / "embeddings" / "test"
+def _load_retriever(config, method, encoder, images, queries, split):
+    cache_path = config.output_root / "embeddings" / split
     actual = read_cache_metadata(cache_path)
     expected = CacheMetadata(
-        split="test",
+        split=split,
         checkpoint_id=config.checkpoint_id,
         checkpoint_revision=encoder.checkpoint_revision,
         manifest_sha256=manifest_sha256(images, queries),
@@ -68,34 +96,9 @@ def _load_retriever(config, method, encoder, images, queries):
         vector_dimension=actual.vector_dimension,
     )
     cache = load_embedding_cache(cache_path, expected)
-    if method == "global":
-        return GlobalRetriever(cache.metadata.image_ids, cache.global_embeddings), 0.0
-
-    alpha_path = config.output_root / "parameters" / "five_crop_alpha.json"
-    if not alpha_path.is_file():
-        raise FileNotFoundError(
-            f"selected alpha file not found: {alpha_path}; run scripts/tune_alpha.py first"
-        )
-    alpha_data = json.loads(alpha_path.read_text(encoding="utf-8"))
-    validation_images, validation_queries = load_split(config, "validation")
-    validation_hash = manifest_sha256(validation_images, validation_queries)
-    if alpha_data.get("validation_manifest_sha256") != validation_hash:
-        raise ValueError(
-            "selected alpha was not tuned on the configured validation manifest"
-        )
-    if alpha_data.get("checkpoint_revision") != cache.metadata.checkpoint_revision:
-        raise ValueError("selected alpha and test cache use different checkpoint revisions")
-    alpha = float(alpha_data["alpha"])
-    return (
-        FiveCropRetriever(
-            cache.metadata.image_ids,
-            cache.global_embeddings,
-            cache.crop_embeddings,
-            cache.metadata.crop_names,
-            alpha,
-        ),
-        alpha,
-    )
+    # Every method (exact, five-crop, FAISS variants) is built through the registry so
+    # this script never needs to know about a specific retriever class.
+    return build_method(method, BuildContext(config, cache, encoder.checkpoint_revision))
 
 
 def _timed_search(encoder, retriever, text: str, timing_runs: int):
@@ -129,8 +132,15 @@ def _timed_search(encoder, retriever, text: str, timing_runs: int):
     )
 
 
-def _write_reports(config, method: str, evaluated, report, threshold_report=None) -> None:
-    report_dir = config.output_root / "reports"
+def _write_reports(
+    report_dir: Path,
+    method: str,
+    split: str,
+    evaluated,
+    report,
+    threshold_report=None,
+    threshold_source=None,
+) -> None:
     report_dir.mkdir(parents=True, exist_ok=True)
 
     per_query_path = report_dir / f"{method}_per_query.csv"
@@ -165,8 +175,10 @@ def _write_reports(config, method: str, evaluated, report, threshold_report=None
     metrics_path = report_dir / f"{method}_metrics.json"
     temporary_json = metrics_path.with_suffix(".json.tmp")
     report_data = asdict(report)
+    report_data["split"] = split
     if threshold_report is not None:
         report_data["thresholded"] = asdict(threshold_report)
+        report_data["threshold_source_method"] = threshold_source
     temporary_json.write_text(
         json.dumps(report_data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -174,7 +186,7 @@ def _write_reports(config, method: str, evaluated, report, threshold_report=None
 
     markdown_path = report_dir / f"{method}_metrics.md"
     markdown = (
-        f"# {method.replace('_', ' ').title()} Results\n\n"
+        f"# {method.replace('_', ' ').title()} Results ({split} split)\n\n"
         "| Queries | R@1 | R@5 | R@10 | MRR | nDCG@10 | "
         "Mean latency (ms) | p50 (ms) | p95 (ms) |\n"
         "|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
@@ -185,9 +197,14 @@ def _write_reports(config, method: str, evaluated, report, threshold_report=None
         f"{report.end_to_end.p95_ms:.3f} |\n"
     )
     if threshold_report is not None:
+        source_note = (
+            "selected on this method's own validation scores"
+            if threshold_source == method
+            else f"selected on the validation scores of `{threshold_source}` (same score scale)"
+        )
         markdown += (
             "\n## Validation-selected score threshold\n\n"
-            f"Scores below `{threshold_report.threshold:.9f}` are excluded. "
+            f"Scores below `{threshold_report.threshold:.9f}` are excluded ({source_note}). "
             "The complete ranking above remains the primary benchmark result.\n\n"
             "| Candidate precision | Candidate recall | Candidate F1 | "
             "Retained fraction | Average results/query | Query coverage | "
@@ -210,16 +227,107 @@ def _write_reports(config, method: str, evaluated, report, threshold_report=None
     temporary_markdown.replace(markdown_path)
 
 
-def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
-    images, queries = load_split(config, "test")
+def _select_validation_threshold(config, built, records, images, encoder, split_hash):
+    """Validation split: select (and freeze, for owners) the score threshold."""
+    spec = built.spec
+    gallery_ids = tuple(image.image_id for image in images)
+    selection = select_threshold_from_records(records, gallery_ids, config.threshold_target_recall)
+    reachable = reachable_fraction(records)
+    print(
+        f"{spec.name}: own validation selection would be threshold={selection.threshold:.6f} "
+        f"(recall {selection.recall:.4f}, precision {selection.precision:.4f}, "
+        f"{selection.retained_candidate_count / len(records):.2f} results/query); "
+        f"relevant image reachable for {reachable:.2%} of queries",
+        flush=True,
+    )
+    if spec.threshold_method != spec.name:
+        print(
+            f"{spec.name}: threshold_source is {spec.threshold_method!r}; nothing written. "
+            f"Run `--method {spec.threshold_method} --split validation` to (re)select it.",
+            flush=True,
+        )
+        return None
+    if reachable < config.threshold_target_recall:
+        print(
+            f"{spec.name}: WARNING only {reachable:.2%} of relevant images are reachable, below the "
+            f"{config.threshold_target_recall:.0%} target; the selected cutoff sits at the filler level",
+            flush=True,
+        )
+    path = threshold_path(config, spec)
+    contents = threshold_file_contents(
+        selection,
+        method_name=spec.name,
+        method_parameters=built.parameters,
+        checkpoint_id=config.checkpoint_id,
+        checkpoint_revision=encoder.checkpoint_revision,
+        validation_manifest_sha256=split_hash,
+        query_count=len(records),
+        gallery_size=len(gallery_ids),
+    )
+    write_threshold_file(path, contents)
+    print(f"{spec.name}: wrote {path}", flush=True)
+    return path
+
+
+def _apply_test_threshold(config, built, records, encoder, alpha, require_threshold):
+    """Test split: load the frozen threshold for this method (own or source) and apply it."""
+    spec = built.spec
+    path = threshold_path(config, spec)
+    validation_images, validation_queries = load_split(config, "validation")
+    validation_hash = manifest_sha256(validation_images, validation_queries)
+    try:
+        threshold = load_threshold(
+            path,
+            validation_manifest_sha256=validation_hash,
+            checkpoint_revision=encoder.checkpoint_revision,
+            target_recall=config.threshold_target_recall,
+            alpha=alpha,
+        )
+    except FileNotFoundError as exc:
+        if require_threshold:
+            raise
+        print(f"{spec.name}: no thresholded metrics ({exc})", flush=True)
+        return None, None, None
+    report = evaluate_score_threshold(
+        [record.ranked_image_ids for record in records],
+        [record.ranked_scores for record in records],
+        [record.relevant_image_ids[0] for record in records],
+        threshold,
+    )
+    print(
+        f"{spec.name}: applied threshold {threshold:.6f} from {path.name} "
+        f"(source method {spec.threshold_method!r})",
+        flush=True,
+    )
+    return threshold, report, path
+
+
+def evaluate(
+    config,
+    method: str,
+    device: str,
+    timing_runs: int,
+    warmup: int,
+    split: str = "test",
+    require_threshold: bool = False,
+):
+    if split not in SPLITS:
+        raise ValueError(f"split must be one of {SPLITS}")
+    images, queries = load_split(config, split)
+    split_hash = manifest_sha256(images, queries)
     encoder = FrozenSiglip2Encoder(
         config.checkpoint_id,
         config.checkpoint_revision,
         device=device,
         cache_dir=config.checkpoint_cache_dir,
     )
-    retriever, alpha = _load_retriever(
-        config, method, encoder, images, queries
+    built = _load_retriever(config, method, encoder, images, queries, split)
+    retriever = built.retriever
+    alpha = float(built.parameters.get("alpha", 0.0))
+    print(
+        f"{method}: built {built.spec.label!r} in {built.build_seconds:.3f}s "
+        f"(family={built.spec.family}, split={split})",
+        flush=True,
     )
 
     for query in queries[: min(warmup, len(queries))]:
@@ -263,34 +371,24 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
     gallery_ids = tuple(image.image_id for image in images)
     validate_predictions(records, expected_relevance, gallery_ids)
     report = aggregate_metrics(evaluated)
-    threshold_report = None
-    threshold = None
-    if method == "five_crop":
-        threshold_path = config.output_root / "parameters" / "five_crop_threshold.json"
-        if not threshold_path.is_file():
-            raise FileNotFoundError(
-                f"selected threshold not found: {threshold_path}; run scripts/tune_alpha.py first"
-            )
-        threshold_data = json.loads(threshold_path.read_text(encoding="utf-8"))
-        validation_images, validation_queries = load_split(config, "validation")
-        validation_hash = manifest_sha256(validation_images, validation_queries)
-        if threshold_data.get("validation_manifest_sha256") != validation_hash:
-            raise ValueError("selected threshold does not match the validation manifest")
-        if threshold_data.get("checkpoint_revision") != encoder.checkpoint_revision:
-            raise ValueError("selected threshold and evaluation use different checkpoints")
-        if float(threshold_data.get("alpha")) != alpha:
-            raise ValueError("selected threshold and retriever use different alpha values")
-        if float(threshold_data.get("target_recall")) != config.threshold_target_recall:
-            raise ValueError("selected threshold uses a different target recall")
-        threshold = float(threshold_data["threshold"])
-        threshold_report = evaluate_score_threshold(
-            [record.ranked_image_ids for record in records],
-            [record.ranked_scores for record in records],
-            [record.relevant_image_ids[0] for record in records],
-            threshold,
-        )
 
-    predictions_dir = config.output_root / "predictions"
+    threshold = None
+    threshold_report = None
+    threshold_file = None
+    if split == "validation":
+        # Thresholds are *selected* here and never applied here.
+        threshold_file = _select_validation_threshold(
+            config, built, records, images, encoder, split_hash
+        )
+        predictions_dir = config.output_root / "predictions" / "validation"
+        report_dir = config.output_root / "reports" / "validation"
+    else:
+        threshold, threshold_report, threshold_file = _apply_test_threshold(
+            config, built, records, encoder, alpha, require_threshold
+        )
+        predictions_dir = config.output_root / "predictions"
+        report_dir = config.output_root / "reports"
+
     prediction_path = predictions_dir / f"{method}.jsonl.gz"
     write_predictions(prediction_path, records)
     metadata = MethodMetadata(
@@ -298,10 +396,17 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
         method_version="1",
         checkpoint_id=config.checkpoint_id,
         checkpoint_revision=encoder.checkpoint_revision,
-        manifest_sha256=manifest_sha256(images, queries),
+        manifest_sha256=split_hash,
         parameters={
+            **built.parameters,
+            "split": split,
+            "method_family": built.spec.family,
+            "method_label": built.spec.label,
+            "method_build_seconds": built.build_seconds,
             "alpha": alpha,
             "score_threshold": threshold,
+            "threshold_source_method": built.spec.threshold_method,
+            "threshold_file": str(threshold_file) if threshold_file else None,
             "threshold_selection_metric": (
                 "validation_target_relevant_recall" if threshold is not None else None
             ),
@@ -327,7 +432,15 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
         },
     )
     write_method_metadata(predictions_dir / f"{method}.metadata.json", metadata)
-    _write_reports(config, method, evaluated, report, threshold_report)
+    _write_reports(
+        report_dir,
+        method,
+        split,
+        evaluated,
+        report,
+        threshold_report,
+        built.spec.threshold_method,
+    )
     printed_report = asdict(report)
     if threshold_report is not None:
         printed_report["thresholded"] = asdict(threshold_report)
@@ -336,13 +449,29 @@ def evaluate(config, method: str, device: str, timing_runs: int, warmup: int):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--config",
         type=Path,
-        default=PROJECT_ROOT / "configs" / "five_crop.yaml",
+        default=PROJECT_ROOT / "configs" / "experiment.yaml",
     )
-    parser.add_argument("--method", choices=("global", "five_crop"), required=True)
+    parser.add_argument(
+        "--method",
+        choices=list_methods(),
+        required=True,
+        help="registered retrieval method; see src/vision_retrieval/methods/",
+    )
+    parser.add_argument(
+        "--split",
+        choices=SPLITS,
+        default="test",
+        help="test = benchmark (applies the frozen threshold); validation = select the threshold",
+    )
+    parser.add_argument(
+        "--require-threshold",
+        action="store_true",
+        help="test split only: fail instead of skipping when the threshold file is missing",
+    )
     parser.add_argument("--device", default=None)
     parser.add_argument("--timing-runs", type=int, default=3)
     parser.add_argument("--warmup", type=int, default=50)
@@ -358,6 +487,8 @@ def main() -> int:
         args.device,
         args.timing_runs,
         args.warmup,
+        split=args.split,
+        require_threshold=args.require_threshold,
     )
     return 0
 

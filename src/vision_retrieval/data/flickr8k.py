@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Mapping, Sequence, Tuple
 
-from .config import ExperimentConfig
+from ..config import ExperimentConfig
 
 
 @dataclass(frozen=True)
